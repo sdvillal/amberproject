@@ -52,9 +52,11 @@ def gen_random_vectors(num, size, rng=np.random, uniform=False):
 
 def parse_amber_evecs(evecs_file=DEFAULT_EVEC_FILE, evecs_to_numpy=False):
     """ Get the relevant info from the eigenvals file. """
+    print 'parsing ' +evecs_file
     with open(evecs_file) as evecs:
         evecs = evecs.read().split(' ****\n')[:-1]
         evals = [float(evec.splitlines()[0].split()[1].strip()) for evec in evecs]
+        assert len(evecs) > 0, '%s should have at least one component, but it seems not to have any. Is the format correct?'%evecs_file
         return evals, len(parse_evec(evecs[0])), parse_evecs(evecs) if evecs_to_numpy else None
 
 def one2amber(val, vec, entry_num):
@@ -76,17 +78,17 @@ def all2amber(vals, vecs):
         reconstructed.append(one2amber(eval, evec, i + 1))
     return ''.join(reconstructed)
 
-def test(TOL=1E-6):
+def test(tol=1E-6):
     """ A few checks """
     evals, num_atoms_coords, evecs = parse_amber_evecs(evecs_to_numpy=True)
     original = open(DEFAULT_EVEC_FILE).read()
     vector = gen_random_vector(num_atoms_coords)
     assert original == all2amber(evals, evecs)
-    assert l2norm(vector) - 1.0 > TOL
-    assert l2norm(normalizel2(vector)) - 1.0 < TOL
-    assert l2norm(vector) - 1.0 > TOL
+    assert l2norm(vector) - 1.0 > tol
+    assert l2norm(normalizel2(vector)) - 1.0 < tol
+    assert l2norm(vector) - 1.0 > tol
     assert are_orthogonal(evecs[0], evecs[1])
-    assert l2norm(evecs[0]) - 1.0 < TOL
+    assert l2norm(evecs[0]) - 1.0 < tol
     print 'Everything seems alright'
     print 'Usage: python rp.py evecsfile1 evecsfile2...'
 
