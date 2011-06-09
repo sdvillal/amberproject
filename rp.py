@@ -102,7 +102,7 @@ if __name__ == '__main__':
         evals, num_atoms_coords, _ = parse_amber_evecs(arg)  #Err-check this...
         for seed in range(5):
             rng = np.random.RandomState(seed)
-            random_vals = sorted(gen_random_vector(len(evals), uniform=True), reverse=True)
+            random_vals = sorted(gen_random_vector(len(evals), rng, uniform=True), reverse=True)
             random_vecs = map(normalizel2, gen_random_vectors(len(evals), num_atoms_coords, rng))
             with open(op.join(root, name+'-rp-gaussian-seed_%d.evecs'%seed), 'w', 0) as dest:
                 dest.write(all2amber(random_vals, random_vecs))
