@@ -2,8 +2,14 @@
 # -*- coding: utf-8 -*-
 """ Random projections stuff and methods to generate fake amber-like eigen-decomposition files.
 
-    Usage: python rp.py evecsfile1 evecsfile2...
-    For each input file, it will generate 5 different normally-distributed random matrices
+    Usage as script examples:
+      - python rp.py evecsfile1 evecsfile2...
+      - python rp.py evecsfile1,1
+        Will read evecsfile1, generate only one random projection output file
+      - python rp.py 100,200,10
+        Will genereate 10 times 100 200-dimensional vectors
+      - any of the previous can be combined separated by spaces
+    For each input spec, it will generate a number different normally-distributed random matrices
     (with controlled random seed).
 
     Requires python >= 2.5 and numpy.
@@ -113,12 +119,18 @@ def test(tol=1E-6):
     assert are_orthogonal(evecs[0], evecs[1])
     assert l2norm(evecs[0]) - 1.0 < tol
     print 'Everything seems alright'
-    print 'Usage: python rp.py evecsfile1 evecsfile2...'
+    print """ Usage as script examples:
+            - python rp.py evecsfile1 evecsfile2...
+            - python rp.py evecsfile1,1
+              Will read evecsfile1, generate only one random projection output file
+            - python rp.py 100,200,10
+              Will genereate 10 times 100 200-dimensional vectors
+            - any of the previous can be combined separated by spaces
+            For each input spec, it will generate a number different normally-distributed random matrices
+            (with controlled random seed)."""
 
 if __name__ == '__main__':
 
-    if len(sys.argv) == 1:
-        test()
     import traceback
     try:
         import argparse
@@ -142,6 +154,8 @@ if __name__ == '__main__':
             with open(op.join(root, name + '-rp-gaussian-seed=%d.evecs' % seed), 'w', 0) as dest:
                 dest.write(all2amber(random_vals, random_vecs))
 
+    if len(sys.argv) == 1:
+        test()
     for arg in sys.argv[1:]:
         dims = arg.split(',')
         if 2 <= len(dims) <= 3 and all(map(is_int, dims)):
