@@ -139,7 +139,7 @@ if __name__ == '__main__':
             rng = np.random.RandomState(seed)
             random_vals = sorted(gen_random_vector(num_vals, rng, uniform=True), reverse=True)
             random_vecs = map(normalizel2, gen_random_vectors(num_vals, dimensionality, rng))
-            with open(op.join(root, name + '-rp-gaussian-seed_%d.evecs' % seed), 'w', 0) as dest:
+            with open(op.join(root, name + '-rp-gaussian-seed=%d.evecs' % seed), 'w', 0) as dest:
                 dest.write(all2amber(random_vals, random_vecs))
 
     for arg in sys.argv[1:]:
