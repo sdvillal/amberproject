@@ -38,7 +38,7 @@ def are_orthogonal(vector1, vector2, eps=1E-4):
 
 def l2norm(vector):
     """ Do not remember if there is a function in numpy to do this. """
-    return np.sqrt(np.dot(vector,vector.conj()))
+    return np.sqrt(np.dot(vector, vector.conj()))
 
 def normalizel2(vec):
     """ Returns a fresh copy of the vector with unit L2-norm """
@@ -61,11 +61,11 @@ def one2amber(val, vec, entry_num):
     """ Amber writes the eigenvalue/eigenvector values in entries with the following format:
         Read the code...
     """
-    lines = [str(entry_num).rjust(5) + ('%.5f'%val).rjust(12)]
+    lines = [str(entry_num).rjust(5) + ('%.5f' % val).rjust(12)]
     fullrows = len(vec) / 7 * 7
-    for row in vec[:fullrows].reshape([-1,7]):
-        lines.append(''.join(map(lambda val: ('%.5f'%val).rjust(11), row)))
-    lines.append(''.join(map(lambda val: ('%.5f'%val).rjust(11), vec[fullrows:])))
+    for row in vec[:fullrows].reshape([-1, 7]):
+        lines.append(''.join(map(lambda val: ('%.5f' % val).rjust(11), row)))
+    lines.append(''.join(map(lambda val: ('%.5f' % val).rjust(11), vec[fullrows:])))
     lines.append(' ****\n')
     return '\n'.join(lines)
 
@@ -91,16 +91,51 @@ def test(TOL=1E-6):
     print 'Usage: python rp.py evecsfile1 evecsfile2...'
 
 if __name__ == '__main__':
+
     if len(sys.argv) == 1:
         test()
-    for arg in sys.argv[1:]:
-        if not op.exists(arg):
-            print 'File %s does not exist, skipping...'%arg
-        root, name = op.split(arg)
-        evals, num_atoms_coords, _ = parse_amber_evecs(arg)  #Err-check this...
-        for seed in range(5):
+    import traceback
+    try:
+        import argparse
+    except ImportError:
+        __import__(op.join(CURRENT_PATH, 'libs', 'argparse.py'))
+
+    def is_int(s):
+        try:
+            int(s)
+            return True
+        except ValueError:
+            return False
+
+    def gen_and_save(num_vals, dimensionality, num_files=5, root=None, name=None):
+        if not root: root = CURRENT_PATH
+        if not name: name = str(num_vals) + '-' + str(dimensionality)
+        for seed in range(num_files):
             rng = np.random.RandomState(seed)
-            random_vals = sorted(gen_random_vector(len(evals), uniform=True), reverse=True)
-            random_vecs = map(normalizel2, gen_random_vectors(len(evals), num_atoms_coords, rng))
-            with open(op.join(root, name+'-rp-gaussian-seed_%d.evecs'%seed), 'w', 0) as dest:
+            random_vals = sorted(gen_random_vector(num_vals, uniform=True), reverse=True)
+            random_vecs = map(normalizel2, gen_random_vectors(num_vals, dimensionality, rng))
+            with open(op.join(root, name + '-rp-gaussian-seed_%d.evecs' % seed), 'w', 0) as dest:
                 dest.write(all2amber(random_vals, random_vecs))
+
+    for arg in sys.argv[1:]:
+        dims = arg.split(',')
+        if 2 <= len(dims) <= 3 and all(map(is_int, dims)):
+            if 2 == len(dims): gen_and_save(int(dims[0]), int(dims[1]))
+            if 3 == len(dims): gen_and_save(int(dims[0]), int(dims[1]), int(dims[2]))
+        else:
+            try:
+                file_and_num = arg.split(',')
+                root, name = op.split(file_and_num[0])
+                evals, num_atoms_coords, _ = parse_amber_evecs(file_and_num[0])
+                num_files = 5
+                if len(file_and_num) == 2:
+                    if is_int(file_and_num[1]):
+                        num_files = int(file_and_num[1])
+                    else:
+                        print '%s is not a valid \"file,num_files to generate\" input'%arg
+                        print 'trying to generate %d files'%num_files
+                gen_and_save(len(evals), num_atoms_coords, num_files=num_files, root=root, name=name)
+            except Exception, e:
+                traceback.print_exc(file=sys.stderr)
+                print e.message
+                print 'there has been an error parsing %s, skipping... ' % arg
