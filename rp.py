@@ -1,11 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-""" Q&D random projections stuff to generate fake amber eigen-decomposition matrices.
-    Note that this is far from being conservative with memory usage, but should be alright
-    with the little residues we are using here.
+""" Random projections stuff and methods to generate fake amber-like eigen-decomposition files.
 
     Usage: python rp.py evecsfile1 evecsfile2...
-    It will generate 5 different normally-distributed random matrices (deterministically).
+    For each input file, it will generate 5 different normally-distributed random matrices
+    (with controlled random seed).
+
+    Requires python >= 2.5 and numpy.
+
+    Note that this is far from being conservative with memory usage, but should be alright
+    with the small number residues we are using here.
 """
 from __future__ import with_statement
 import numpy as np
@@ -13,7 +17,7 @@ import os.path as op
 import sys
 
 CURRENT_PATH = op.split(op.realpath(__file__))[0]
-DEFAULT_EVEC_FILE = op.join(CURRENT_PATH, 'test.evec')
+TEST_EVEC_FILE = op.join(CURRENT_PATH, 'test.evec')
 
 def parse_with_zero_negative(val):
     """ AFAIK, python does not parse negative zero as such.
@@ -38,11 +42,18 @@ def are_orthogonal(vector1, vector2, eps=1E-4):
 
 def l2norm(vector):
     """ Do not remember if there is a function in numpy to do this. """
-    return np.sqrt(np.dot(vector,vector.conj()))
+    return np.sqrt(np.dot(vector, vector.conj()))
 
 def normalizel2(vec):
     """ Returns a fresh copy of the vector with unit L2-norm """
     return vec / l2norm(vec)
+
+def gen_random_vector_achlioptas(size, rng=np.random, sparse=False):
+    """ Random projection ala Achlioptas 2003 """
+    if sparse:
+        return 1 - 2 * rng.binomial(1, 0.5, size)
+    rv = np.array([1 if r < 1.0 / 6 else 0 if r < 5.0 / 6 else -1 for r in rng.uniform(size)])
+    return np.sqrt(3) * rv
 
 def gen_random_vector(size, rng=np.random, uniform=False):
     return rng.uniform(size=size) if uniform else rng.randn(size)
@@ -50,24 +61,36 @@ def gen_random_vector(size, rng=np.random, uniform=False):
 def gen_random_vectors(num, size, rng=np.random, uniform=False):
     return [gen_random_vector(size, rng, uniform) for _ in range(num)]
 
-def parse_amber_evecs(evecs_file=DEFAULT_EVEC_FILE, evecs_to_numpy=False):
+def parse_amber_evecs(evecs_file=TEST_EVEC_FILE, evecs_to_numpy=False):
     """ Get the relevant info from the eigenvals file. """
-    print 'parsing ' +evecs_file
+    print 'parsing ' + evecs_file
     with open(evecs_file) as evecs:
         evecs = evecs.read().split(' ****\n')[:-1]
         evals = [float(evec.splitlines()[0].split()[1].strip()) for evec in evecs]
-        assert len(evecs) > 0, '%s should have at least one component, but it seems not to have any. Is the format correct?'%evecs_file
+        assert len(
+            evecs) > 0, '%s should have at least one component, but it seems not to have any. Is the format correct?' % evecs_file
         return evals, len(parse_evec(evecs[0])), parse_evecs(evecs) if evecs_to_numpy else None
 
 def one2amber(val, vec, entry_num):
     """ Amber writes the eigenvalue/eigenvector values in entries with the following format:
-        Read the code...
+    1     3.79020
+    0.02512   -0.00180    0.03072    0.02381    0.00409    0.03047    0.03714
+    0.00672    0.02933    0.03701    0.01292    0.02791   -0.05276   -0.02159
+   -0.00384    0.12654
+ ****
+    2     3.58386
+    0.00266   -0.00434   -0.00305    0.01347   -0.00807    0.00387    0.03029
+   -0.00752    0.01879    0.03148   -0.01426    0.02181    0.43497    0.17854
+    0.16005   -0.37272
+ ****
+    This method returns a string with the info in the inputs it that exact format.
+    TODO: Doctest this
     """
-    lines = [str(entry_num).rjust(5) + ('%.5f'%val).rjust(12)]
+    lines = [str(entry_num).rjust(5) + ('%.5f' % val).rjust(12)]
     fullrows = len(vec) / 7 * 7
-    for row in vec[:fullrows].reshape([-1,7]):
-        lines.append(''.join(map(lambda val: ('%.5f'%val).rjust(11), row)))
-    lines.append(''.join(map(lambda val: ('%.5f'%val).rjust(11), vec[fullrows:])))
+    for row in vec[:fullrows].reshape([-1, 7]):
+        lines.append(''.join(map(lambda val: ('%.5f' % val).rjust(11), row)))
+    lines.append(''.join(map(lambda val: ('%.5f' % val).rjust(11), vec[fullrows:])))
     lines.append(' ****\n')
     return '\n'.join(lines)
 
@@ -81,7 +104,7 @@ def all2amber(vals, vecs):
 def test(tol=1E-6):
     """ A few checks """
     evals, num_atoms_coords, evecs = parse_amber_evecs(evecs_to_numpy=True)
-    original = open(DEFAULT_EVEC_FILE).read()
+    original = open(TEST_EVEC_FILE).read()
     vector = gen_random_vector(num_atoms_coords)
     assert original == all2amber(evals, evecs)
     assert l2norm(vector) - 1.0 > tol
@@ -97,12 +120,12 @@ if __name__ == '__main__':
         test()
     for arg in sys.argv[1:]:
         if not op.exists(arg):
-            print 'File %s does not exist, skipping...'%arg
+            print 'File %s does not exist, skipping...' % arg
         root, name = op.split(arg)
         evals, num_atoms_coords, _ = parse_amber_evecs(arg)  #Err-check this...
         for seed in range(5):
             rng = np.random.RandomState(seed)
             random_vals = sorted(gen_random_vector(len(evals), rng, uniform=True), reverse=True)
             random_vecs = map(normalizel2, gen_random_vectors(len(evals), num_atoms_coords, rng))
-            with open(op.join(root, name+'-rp-gaussian-seed_%d.evecs'%seed), 'w', 0) as dest:
+            with open(op.join(root, name + '-rp-gaussian-seed_%d.evecs' % seed), 'w', 0) as dest:
                 dest.write(all2amber(random_vals, random_vecs))
